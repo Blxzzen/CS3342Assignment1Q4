@@ -1,0 +1,110 @@
+import sys
+
+def remove_comments(inp_path: str, out_path: str) -> None:
+    with open(inp_path, "r", encoding="utf-8", newline="") as f:
+        s = f.read()
+
+    out = []
+    i = 0
+    n = len(s)
+
+    depth = 0          # nesting for /* ... */
+    in_sl = False      # //
+    in_dq = False      # "
+    in_sq = False      # '
+    esc = False        # escape inside string
+
+    def peek2(k: int) -> str:
+        # safe two-char peek
+        if k + 1 < n:
+            return s[k] + s[k + 1]
+        return ""
+
+    while i < n:
+        two = peek2(i)
+        ch = s[i]
+
+        if s[i:i+6] == "here.\n":
+            print("DEBUG at 'here.': depth=", depth, "in_sl=", in_sl,
+                  "in_dq=", in_dq, "in_sq=", in_sq)
+        # Escape handling only inside strings
+        if esc:
+            out.append(ch)
+            esc = False
+            i += 1
+            continue
+
+        # Inside multiline comment: consume only, manage nesting
+        if depth > 0:
+            if two == "/*":
+                depth += 1
+                i += 2
+            elif two == "*/":
+                depth -= 1
+                i += 2
+            else:
+                i += 1
+            continue
+
+        # Inside single-line comment: consume until newline
+        if in_sl:
+            if ch == "\n":
+                in_sl = False
+                out.append("\n")
+            i += 1
+            continue
+
+        # Inside strings: copy, handle escapes, close on matching quote
+        if in_dq:
+            out.append(ch)
+            if ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_dq = False
+            i += 1
+            continue
+
+        if in_sq:
+            out.append(ch)
+            if ch == "\\":
+                esc = True
+            elif ch == "'":
+                in_sq = False
+            i += 1
+            continue
+
+        # Neutral: open a new state or copy char
+        if two == "/*":
+            depth = 1
+            i += 2
+            continue
+
+        if two == "//":
+            in_sl = True
+            i += 2
+            continue
+
+        if ch == '"':
+            in_dq = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "'":
+            in_sq = True
+            out.append(ch)
+            i += 1
+            continue
+
+        # Regular code
+        out.append(ch)
+        i += 1
+
+    with open(out_path, "w", encoding="utf-8", newline="") as f:
+        f.write("".join(out))
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python dcom_rm.py <inputC.cpp> <inputC_rm.cpp>")
+        sys.exit(1)
+    remove_comments(sys.argv[1], sys.argv[2])
